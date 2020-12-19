@@ -1,0 +1,47 @@
+#! /usr/bin/env node
+const program = require('commander');
+const chalk = require('chalk');
+
+const config = require('./config');
+const Server = require('../src/server');
+
+// program.name('zf-hs1');
+// console.log(program);
+// 1.端口号 2.能指定目录 3.文件是否需要缓存 
+
+const defaultConfig = {};
+const usageList = [];
+Object.entries(config).forEach(([key, value]) => {
+  defaultConfig[key] = value.default;
+  usageList.push(value.usage);
+  program.option(value.option, value.descriptor);
+});
+
+program.on('--help', function () {
+  console.log('Examples');
+  usageList.forEach(line => {
+    console.log(`  ${chalk.green(line)}\r`);
+  })
+})
+
+// 解析用户执行时的参数
+program.parse(process.argv)
+
+function mergeOptions(defaultConfig, newConfig) {
+  const options = {};
+  for (let key in defaultConfig) {
+    if (!(key in newConfig)) {
+      options[key] = defaultConfig[key];
+    } else {
+      // 如果用户输入了新的参数，用新值覆盖默认值
+      options[key] = newConfig[key];
+    }
+  }
+  return options;
+}
+
+let options = mergeOptions(defaultConfig, program);
+
+console.log(options);
+const server = new Server(options);
+server.start();

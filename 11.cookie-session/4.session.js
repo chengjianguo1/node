@@ -11,7 +11,7 @@ const session = {};
 const CardName = 'connect.sid'; // 卡的名字
 
 const server = http.createServer((req, res) => {
-    req.getCookie = function(key, options = {}) {
+    req.getCookie = function (key, options = {}) {
         let cookieObj = querystring.parse(req.headers['cookie'], '; ');
 
         if (options.signed) {
@@ -30,7 +30,7 @@ const server = http.createServer((req, res) => {
         }
     }
     let cookies = []
-    res.setCookie = function(key, value, options = {}) {
+    res.setCookie = function (key, value, options = {}) {
         let optArgs = [];
 
         if (options.maxAge) {
@@ -56,10 +56,12 @@ const server = http.createServer((req, res) => {
     // 之后你就带着卡来了 ， 我就可以扣钱 （不需要重新发卡）
     if (req.url === '/cut') {
         let cardId = req.getCookie(CardName);
+        // todo session就是把cookie保存在服务端，防止被篡改的风险  session是基于cookie的
         if (cardId && session[cardId]) { // 服务器一旦重启 session就被清空了
             session[cardId].mny -= 20;
             res.end(session[cardId].mny + ` money`)
         } else { // 第一次来  uuid 
+            // todo 通过 uuid.v4() 生成唯一标识
             let cardId = uuid.v4(); // MathRandom + date 
             session[cardId] = { mny: 100 };
             res.setCookie(CardName, cardId, { httpOnly: true });

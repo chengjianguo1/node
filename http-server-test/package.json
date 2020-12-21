@@ -1,6 +1,6 @@
 {
-  "name": "cjg",
-  "version": "1.0.0",
+  "name": "cjg-http-server",
+  "version": "1.0.1",
   "description": "",
   "bin": "./bin/www",
   "main": "index.js",
@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.0",
+    "cjg-http-server3": "^1.0.0",
     "commander": "^6.2.1",
     "ejs": "^3.1.5",
     "mime": "^2.4.7"

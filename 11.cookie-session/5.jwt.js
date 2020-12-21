@@ -3,6 +3,7 @@
 
 
 // jwt-simple => jsonwebtoken
+// todo jwt-simple 和 jsonwebtoken 都是生成token的库
 
 const http = require('http');
 const url = require('url');
@@ -47,10 +48,10 @@ const server = http.createServer((req, res) => {
     // 用户访问login 
     if (req.url === '/login') {
         let arr = [];
-        req.on('data', function(chunk) {
+        req.on('data', function (chunk) {
             arr.push(chunk);
         });
-        req.on('end', function() {
+        req.on('end', function () {
             let result;
             let content = Buffer.concat(arr).toString();
             if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
@@ -79,6 +80,7 @@ const server = http.createServer((req, res) => {
             try {
                 let payload = jwt1.decode(token, secret);
                 console.log(payload)
+                // todo 判断token是否过期
                 let exp = new Date(payload.exp).getTime()
                 if (exp < new Date().getTime()) {
                     res.end('token exp');

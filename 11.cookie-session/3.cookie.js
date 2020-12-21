@@ -2,35 +2,36 @@ const http = require('http');
 const querystring = require('querystring');
 const crypto = require('crypto')
 const key = 'zf'; // openssl 生成一个1024字节的秘钥  https openssl 先生成 配置到nginx
-function signed(value){ // 比md5 多了一个盐值
-    return crypto.createHmac('sha256',key).update(value.toString()).digest('base64');
+function signed(value) { // 比md5 多了一个盐值
+    return crypto.createHmac('sha256', key).update(value.toString()).digest('base64');
 }
 // console.log(querystring.parse('name*f; age*1','; ','*'));
 const server = http.createServer((req, res) => {
-    req.getCookie = function(key,options = {}) {
+    req.getCookie = function (key, options = {}) {
         //  key=value;  key=value;  key=value  .split(; ) line.split('=')
         let cookieObj = querystring.parse(req.headers['cookie'], '; ');
-        
-        if(options.signed){ // 需要校验签名
-            let [value,sign] = cookieObj[key].split('.');
-            if( signed(value) == sign){ // jwt 也是这个原理
+
+        if (options.signed) { // 需要校验签名
+            // todo 校验签名，如果用户篡改了签名，cookie失效
+            let [value, sign] = cookieObj[key].split('.');
+            if (signed(value) == sign) { // jwt 也是这个原理
                 return value;
-            }else{
+            } else {
                 return ''; // 校验失败 说明cookie失效，可能用户被修改了
             }
-        }else{
-            if(cookieObj[key]){
+        } else {
+            if (cookieObj[key]) {
                 return cookieObj[key].split('.')[0]
-            }else{
+            } else {
                 return ''
             }
         }
     }
     let cookies = []
-    res.setCookie = function(key, value, options = {}) {
+    res.setCookie = function (key, value, options = {}) {
         // {age:1,name:2} => age=1&name=2
         let optArgs = [];
-       
+
         if (options.maxAge) {
             optArgs.push(`max-age=${options.maxAge}`)
         }
@@ -40,8 +41,9 @@ const server = http.createServer((req, res) => {
         if (options.httpOnly) {
             optArgs.push(`httpOnly=${options.httpOnly}`)
         }
+        // todo 设置签名
         if (options.signed) {
-            value = value + '.' +  signed(value);
+            value = value + '.' + signed(value);
         }
         let cookieValue = `${key}=${value}`
         // cookie的分隔符是; name=zf; max-age=10; expires= ; 
@@ -50,7 +52,7 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.url === '/read') {
-        let value = req.getCookie('age',{signed:true});
+        let value = req.getCookie('age', { signed: true });
         res.end(value);
     } else if (req.url === '/write') {
 

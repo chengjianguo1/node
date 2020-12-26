@@ -1,11 +1,22 @@
 const url = require('url');
 const Layer = require('./layer');
 const Route = require('./route');
-function Router() {
-    this.stack = []
+const methods = require('methods');
+
+function Router() { // 能充当构造函数 也可以充当类 , 无论是new 还是call 都返回一个函数
+    let router = function (req, res, next) {
+        // 请求到来时 匹配到路径后会执行此方法，我需要去stack中依次执行
+        router.handle(req, res, next); // 执行对应stack中的路由系统
+    }
+    router.stack = [];
+    router.__proto__ = proto; // 代码基本没有改变 但是让类支持了函数的调用
+    return router; // 如果类返回一个引用类型  当前这个返回值会作为类的实例
 }
+
+
 // 外层的layer 考虑路径   里层的layer考虑方法 = 同一个类
-Router.prototype.route = function (path) {
+let proto = {};
+proto.route = function (path) {
     let route = new Route();
     let layer = new Layer(path, route.dispatch.bind(route)); // 每次调用get方法， 都会产生一个layer实例和一个route实例
 
@@ -14,25 +25,95 @@ Router.prototype.route = function (path) {
     this.stack.push(layer)
     return route;
 }
-// app.get
-Router.prototype.get = function (path, handlers) { // handlers 是用户定义get时传递过来的所有执行函数  （数组）
-    let route = this.route(path); // 创建一个route实例
-    // 创建一个layer  还要创建一个route，将handlers 传递给route
-    route.get(handlers);
-
+proto.use = function (path, ...handlers) {
+    if (!handlers[0]) { // 只传递了一个函数 
+        handlers.push(path); // app.use(function(){})  app.use()
+        path = '/'
+    }
+    // todo 二级路由 的handlers是router，在这里包装成了方法
+    // function Router() { // 能充当构造函数 也可以充当类 , 无论是new 还是call 都返回一个函数
+    //     let router = function (req, res, next) {
+    //         // 请求到来时 匹配到路径后会执行此方法，我需要去stack中依次执行
+    //         router.handle(req, res, next); // 执行对应stack中的路由系统
+    //     }
+    //     router.stack = [];
+    //     router.__proto__ = proto; // 代码基本没有改变 但是让类支持了函数的调用
+    //     return router; // 如果类返回一个引用类型  当前这个返回值会作为类的实例
+    // }
+    handlers.forEach(handler => {
+        let layer = new Layer(path, handler);
+        layer.route = undefined; // 不写也是undefined ， 主要告诉你 中间件没有route
+        this.stack.push(layer);
+    })
 }
-Router.prototype.handle = function (req, res, done) {
-    let { pathname } = url.parse(req.url);
+// app.get
+methods.forEach(method => {
+    // app.get => handlers   rouer.get
+    proto[method] = function (path, handlers) { // handlers 是用户定义get时传递过来的所有执行函数  （数组）
+        if (!Array.isArray(handlers)) {
+            handlers = Array.from(arguments).slice(1);
+        }
+        let route = this.route(path); // 创建一个route实例
+        // 创建一个layer  还要创建一个route，将handlers 传递给route
+        // todo 在这里把路由的处理方法一个一个放入到route的栈中
+        route[method](handlers);
 
+    }
+})
+
+proto.handle = function (req, res, done) {
+    let { pathname } = url.parse(req.url);
+    let method = req.method.toLowerCase()
     let idx = 0;
-    const next = () => {
+    let removed = '';
+    const next = (err) => { // 中间件 和内部的next方法 出错都会走这个next
         if (idx >= this.stack.length) return done(); // 路由处理不了 传递给应用层
         let layer = this.stack[idx++];
-        if (layer.path == pathname) { // 这个next可以让路由层扫描下一个layer
-            // todo 回调递归的逻辑在这里
-            layer.handler(req, res, next); // route.dispatch
-        } else { // 如果路径不匹配执行下一层逻辑
-            next();
+        // todo 如果有值就把路径一个一个加回去
+        if (removed.length) {
+            req.url = removed + req.url;
+            removed = '';
+        }
+        if (err) {
+            // 如果有错误 ， 找错误处理中间件
+            if (!layer.route) { // 中间件
+                if (layer.handler.length === 4) {
+                    layer.handler(err, req, res, next)
+                } else {
+                    next(err);
+                }
+            } else { // 路由
+                next(err);
+            }
+        } else {
+            // 无论是路由还是中间件 前提是路径必须匹配
+            if (layer.match(pathname)) { // match还没有更改
+                req.params = layer.params
+                if (!layer.route) { // 没有说明是中间件
+                    // 正常中间件不走错误
+                    if (layer.handler.length !== 4) {
+                        // 进入到中间件的时候 需要将中间件的路径移除掉
+                        //add
+                        if (layer.path !== '/') {
+                            removed = layer.path; // 要删除的部分  中间件要是/ 就不要删除了
+                            req.url = req.url.slice(layer.path.length);
+                        }
+                        layer.handle_request(req, res, next); // 直接执行中间件函数
+                    } else {
+                        next();
+                    }
+                } else {
+                    // 路由必须匹配方法
+                    if (layer.route.methods[method]) { // 这个next可以让路由层扫描下一个layer
+                        // todo 如果是路由，这里的handle_request执行的是route.dispatch方法
+                        layer.handle_request(req, res, next); // route.dispatch
+                    } else {
+                        next();
+                    }
+                }
+            } else {
+                next();
+            }
         }
     }
     next(); // 请求来了取出第一个执行

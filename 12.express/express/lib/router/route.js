@@ -1,27 +1,33 @@
 const Layer = require("./layer");
-
+const methods = require('methods');
 function Route() {
     this.stack = [];
+    this.methods = {} // {get:true,post:true,delete:true}
 }
-Route.prototype.get = function (handlers) { // handlers 为用户真实的所有的回调
-    handlers.forEach(handler => {
-        //                     里层不考虑路径 所以是什么都无所谓
-        const layer = new Layer('/', handler);
-        layer.method = 'get';
-        this.stack.push(layer);
-    });
 
-}
+methods.forEach(method => {
+    Route.prototype[method] = function (handlers) { // handlers 为用户真实的所有的回调
+        handlers.forEach(handler => {
+            //                     里层不考虑路径 所以是什么都无所谓
+            const layer = new Layer('/', handler); // todo 第二层的layer 有 method 方法的
+            layer.method = method;
+            this.methods[method] = true;
+            this.stack.push(layer);
+        });
+
+    }
+})
+
 Route.prototype.dispatch = function (req, res, out) { // 让用户定义的函数 依次执行
     // 等会请求来了 依次让this.stack 中的方法执行即可
     let requestMethod = req.method.toLowerCase();
     let idx = 0;
-    const next = () => {
-        // todo 当前 layer 中所有的回调执行完后，通过执行 out 回到 router 中继续执行
+    const next = (err) => { // 路由中的next走的是这个方法
+        if (err) return out(err)
         if (idx >= this.stack.length) return out();
         let layer = this.stack[idx++];
         if (layer.method == requestMethod) {
-            layer.handler(req, res, next);
+            layer.handle_request(req, res, next);
         } else {
             next();
         }

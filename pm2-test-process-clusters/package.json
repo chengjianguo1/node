@@ -1,0 +1,12 @@
+{
+  "name": "24.process",
+  "version": "1.0.0",
+  "description": "",
+  "main": "1.http-server.js",
+  "scripts": {
+    "dev": "node http.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
